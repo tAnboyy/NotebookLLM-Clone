@@ -16,13 +16,19 @@ jobs:
           fetch-depth: 0
           lfs: true
 
-      - name: Push to Hugging Face Space
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Hugging Face Hub
+        run: pip install --upgrade huggingface-hub
+
+      - name: Push to Hugging Face Space (safe)
+        uses: huggingfacehub/actions-push-to-hub@v0.1.0
+        with:
+          repo_id: notebooklm-group2/NotebookLM-Clone
+          repo_type: space
+          path: .
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-
-          git remote add huggingface https://notebooklm-group2:$HF_TOKEN@huggingface.co/spaces/notebooklm-group2/NotebookLM-Clone
-
-          git push huggingface main --force
