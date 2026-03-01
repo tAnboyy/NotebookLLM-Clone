@@ -1,2 +1,5 @@
-gradio==4.44.0
+gradio[oauth]==4.44.0
 huggingface_hub==0.24.7
+supabase>=2.0.0
+python-dotenv>=1.0.0
+realtime==2.3.0

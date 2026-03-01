@@ -37,3 +37,6 @@ logs/
 # Gradio temp files
 gradio_cached_examples/
 flagged/
+
+# User data storage
+data/
