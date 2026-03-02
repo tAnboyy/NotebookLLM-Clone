@@ -6,3 +6,4 @@ realtime==2.3.0
 chardet>=5.0.0
 sentence-transformers>=2.0.0
 pypdf>=4.2.0
+beautifulsoup4>=4.12.3
