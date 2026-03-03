@@ -3,7 +3,7 @@
 import os
 import re
 
-from huggingface_hub import InferenceClient
+from openai import OpenAI
 
 from backend.chat_service import save_message, load_chat
 from backend.retrieval_service import retrieve_chunks
@@ -12,17 +12,16 @@ MAX_HISTORY_MESSAGES = 20
 DEFAULT_MODEL = "mistralai/Mistral-7B-Instruct-v0.2"
 TOP_K = 5
 
-_client: InferenceClient | None = None
+_client: OpenAI | None = None
 
 
-def _get_client() -> InferenceClient:
+def _get_client() -> OpenAI:
     global _client
     if _client is None:
         token = os.getenv("HF_TOKEN")
-        # Use new HF router (api-inference deprecated)
-        _client = InferenceClient(
+        _client = OpenAI(
             base_url="https://router.huggingface.co/v1",
-            token=token,
+            api_key=token,
         )
     return _client
 
@@ -78,12 +77,12 @@ def rag_chat(notebook_id: str, query: str, chat_history: list) -> tuple[str, lis
 
     try:
         client = _get_client()
-        response = client.chat_completion(
-            messages=messages,
+        response = client.chat.completions.create(
             model=DEFAULT_MODEL,
+            messages=messages,
             max_tokens=512,
         )
-        raw_answer = response.choices[0].message.content
+        raw_answer = response.choices[0].message.content or ""
         answer = _validate_citations(raw_answer, len(chunks))
     except Exception as e:
         answer = f"Error calling model: {e}"

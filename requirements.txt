@@ -1,5 +1,6 @@
 gradio[oauth]==4.44.1
 huggingface_hub==0.24.7
+openai>=1.0.0
 supabase>=2.0.0
 python-dotenv>=1.0.0
 realtime==2.3.0
