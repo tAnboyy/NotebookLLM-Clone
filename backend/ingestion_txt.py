@@ -16,13 +16,11 @@ from sentence_transformers import SentenceTransformer
 
 # Load model once at module level (not on every call)
 _model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-# ── Constants ────────────────────────────────────────────────
-
+#  Constants 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
-# ── Text Processing ──────────────────────────────────────────
-
+# Text Processing 
 def detect_encoding(file_bytes: bytes) -> str:
     """
     Detects encoding of raw bytes.
@@ -61,7 +59,7 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
-# ── Supabase DB Operations ───────────────────────────────────
+# Supabase DB Operations 
 
 def _create_source_record(
     source_id: str,
@@ -81,7 +79,7 @@ def _create_source_record(
         "storage_path": storage_path,
     }).execute()
 
-# ── Chunking ─────────────────────────────────────────────────
+# Chunking 
 def chunk_text(text: str, source_id: str, notebook_id: str, filename: str = "") -> list[dict]:
     words = text.split()
     chunk_size = 400
@@ -113,7 +111,7 @@ def chunk_text(text: str, source_id: str, notebook_id: str, filename: str = "") 
     return chunks
 
 
-# ── Embed + Store ─────────────────────────────────────────────
+# Embed + Store 
 def embed_and_store_chunks(chunks: list[dict]) -> None:
     """
     Embed chunks using sentence-transformers and store in pgvector.
@@ -139,9 +137,9 @@ def embed_and_store_chunks(chunks: list[dict]) -> None:
 
     try:
         supabase.table("chunks").insert(rows).execute()
-        print(f"✅ Inserted {len(rows)} chunks into pgvector")
+        print(f"Inserted {len(rows)} chunks into pgvector")
     except Exception as e:
-        print(f"❌ Failed to insert chunks: {e}")
+        print(f"Failed to insert chunks: {e}")
         raise
 
 def _update_source_ready(
@@ -167,7 +165,7 @@ def _update_source_failed(source_id: str, error: str) -> None:
     }).eq("id", source_id).execute()
 
 
-# ── Main Ingestion Function ──────────────────────────────────
+# Main Ingestion Function 
 
 def ingest_txt(
     file_bytes: bytes,
@@ -189,7 +187,7 @@ def ingest_txt(
     Raises ValueError on validation errors.
     """
 
-    # ── Validate ─────────────────────────────────────────────
+    # Validate 
     if not file_bytes:
         raise ValueError("Empty file — nothing to ingest.")
 
@@ -199,16 +197,16 @@ def ingest_txt(
     if not filename.lower().endswith(".txt"):
         raise ValueError("Only .txt files are accepted here.")
 
-    # ── Generate IDs ─────────────────────────────────────────
+    # Generate IDs 
     source_id = str(uuid4())
 
-    # ── Upload raw file to Supabase Storage ──────────────────
+    # Upload raw file to Supabase Storage 
     sources_path = get_sources_path(user_id, notebook_id)
     storage_path = f"{sources_path}/{source_id}_{filename}"
 
     save_file(storage_path, file_bytes)
 
-    # ── Create DB record (PENDING) ───────────────────────────
+    # Create DB record (PENDING) 
     _create_source_record(
         source_id=source_id,
         notebook_id=notebook_id,
@@ -217,7 +215,7 @@ def ingest_txt(
         storage_path=storage_path
     )
 
-    # ── Extract + Clean ───────────────────────────────────────
+    # Extract + Clean 
     try:
         encoding = detect_encoding(file_bytes)
         raw_text = file_bytes.decode(encoding, errors="replace")
@@ -234,13 +232,13 @@ def ingest_txt(
             "size_bytes": len(file_bytes),
         }
 
-        # ── Update DB record (READY) ──────────────────────────
+        # Update DB record (READY) 
         _update_source_ready(source_id, cleaned_text, metadata)
         
-        # ── Chunk + Embed + Store ─────────────────────────────
-        print(f"🔄 Starting chunking for {filename}...")
+        # Chunk + Embed + Store 
+        print(f" Starting chunking for {filename}...")
         chunks = chunk_text(cleaned_text, source_id, notebook_id, filename=filename)
-        print(f"🔄 Created {len(chunks)} chunks, embedding now...")
+        print(f" Created {len(chunks)} chunks, embedding now...")
         embed_and_store_chunks(chunks)
 
         return {
@@ -253,12 +251,12 @@ def ingest_txt(
         }
 
     except Exception as e:
-        print(f"❌ Ingestion failed: {e}")
+        print(f" Ingestion failed: {e}")
         _update_source_failed(source_id, str(e))
         raise
 
 
-# ── List Sources for a Notebook ──────────────────────────────
+# List Sources for a Notebook 
 
 def list_sources(notebook_id: str) -> list[dict]:
     """

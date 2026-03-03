@@ -320,29 +320,27 @@ def _build_row_updates(notebooks):
         out.append(gr.update(value=name, visible=visible))
     return out
 
-# ── Upload Handler Functions ──────────────────────────────────
+#Upload Handler Functions
 def _do_upload(text_content, title, notebook_id, profile: gr.OAuthProfile | None):
     """Handle direct text input and ingestion."""
-    from backend.ingestion_txt import ingest_txt, list_sources
+    from backend.ingestion_txt import ingest_txt
 
     user_id = _user_id(profile)
 
     if not user_id:
-        return "❌ Please sign in first.", ""
+        return "Please sign in first."
     if not notebook_id:
-        return "❌ Please select a notebook first.", ""
+        return "Please select a notebook first."
     if not text_content or not text_content.strip():
-        return "❌ No text entered.", ""
+        return "No text entered."
 
     try:
-        # Use title as filename, fallback to timestamp
         filename = (title or "").strip()
         if not filename:
             filename = f"text_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         if not filename.endswith(".txt"):
             filename = filename + ".txt"
 
-        # Convert text to bytes for ingestion pipeline
         file_bytes = text_content.encode("utf-8")
 
         result = ingest_txt(
@@ -353,18 +351,15 @@ def _do_upload(text_content, title, notebook_id, profile: gr.OAuthProfile | None
         )
 
         meta = result["metadata"]
-        status_msg = (
-            f"✅ **{result['filename']}** saved successfully!\n\n"
+        return (
+            f" **{result['filename']}** saved successfully!\n\n"
             f"- Size: {meta['size_bytes'] / 1024:.1f} KB"
         )
 
-        #sources = list_sources(notebook_id)
-        return status_msg, ""
-
     except ValueError as e:
-        return f"❌ {str(e)}", ""
+        return f" {str(e)}"
     except Exception as e:
-        return f"❌ Unexpected error: {str(e)}", ""
+        return f"Unexpected error: {str(e)}"
 
 def _format_sources(sources: list[dict]) -> str:
     if not sources:
@@ -384,6 +379,84 @@ def _load_sources(notebook_id, profile: gr.OAuthProfile | None):
         return ""
     sources = list_sources(notebook_id)
     return _format_sources(sources)
+
+# Quiz Handlers 
+def _get_notebook_pdfs(notebook_id):
+    if not notebook_id:
+        return gr.update(choices=[], value=None, visible=False)
+    from backend.db import supabase
+    result = (
+        supabase.table("chunks")
+        .select("source_id")
+        .eq("notebook_id", notebook_id)
+        .execute()
+    )
+    pdfs = list({r["source_id"] for r in (result.data or []) if r["source_id"].endswith(".pdf")})
+    return gr.update(choices=pdfs, value=pdfs[0] if pdfs else None, visible=True)
+
+def _generate_quiz(notebook_id, source_type, pdf_source_id, profile: gr.OAuthProfile | None):
+    from backend.quiz_service import generate_quiz
+
+    user_id = _user_id(profile)
+    if not user_id:
+        return "Please sign in first.", [], *([gr.update(visible=False)] * 5 * 4), gr.update(visible=False), ""
+    if not notebook_id:
+        return "Please select a notebook first.", [], *([gr.update(visible=False)] * 5 * 4), gr.update(visible=False), ""
+
+    type_map = {"Text": "txt", "PDF": "pdf", "URL": "url", "All": "all"}
+    source_type_key = type_map.get(source_type, "all")
+
+    try:
+        result = generate_quiz(notebook_id, source_type=source_type_key, source_id=pdf_source_id)
+        questions = result["questions"]
+        updates = []
+        for i in range(5):
+            if i < len(questions):
+                q = questions[i]
+                q_label = f"**Q{i+1}. {q['question']}**"
+                if q["type"] == "multiple_choice":
+                    updates += [gr.update(visible=True), gr.update(value=q_label), gr.update(choices=q["options"], value=None, visible=True), gr.update(value="", visible=False)]
+                elif q["type"] == "true_false":
+                    updates += [gr.update(visible=True), gr.update(value=q_label), gr.update(choices=["True", "False"], value=None, visible=True), gr.update(value="", visible=False)]
+                else:
+                    updates += [gr.update(visible=True), gr.update(value=q_label), gr.update(choices=[], value=None, visible=False), gr.update(value="", visible=True)]
+            else:
+                updates += [gr.update(visible=False), gr.update(value=""), gr.update(choices=[], value=None, visible=False), gr.update(value="", visible=False)]
+        return "Quiz generated!", questions, *updates, gr.update(visible=True), ""
+    except Exception as e:
+        return f" {e}", [], *([gr.update(visible=False)] * 5 * 4), gr.update(visible=False), ""
+
+
+def _submit_quiz(questions, *answers):
+    if not questions:
+        return " No quiz loaded."
+    score = 0
+    lines = []
+    for i, q in enumerate(questions):
+        radio_ans = answers[i] or ""
+        text_ans = answers[i + 5] or ""
+        user_ans = text_ans.strip() if q["type"] == "short_answer" else radio_ans.strip()
+        correct = q["answer"].strip()
+
+        if not user_ans:
+            is_correct = False
+        elif q["type"] == "multiple_choice":
+            user_letter = user_ans.split(".")[0].strip().upper()
+            correct_letter = correct[0].upper()
+            is_correct = user_letter == correct_letter
+        elif q["type"] == "true_false":
+            is_correct = user_ans.lower() == correct.lower()
+        else:
+            is_correct = user_ans.lower() in correct.lower() or correct.lower() in user_ans.lower()
+
+        if is_correct:
+            score += 1
+            lines.append(f"✅ **Q{i+1}**: Correct! *(Answer: {correct})*")
+        else:
+            lines.append(f"❌ **Q{i+1}**: Incorrect. *(Your answer: {user_ans or 'blank'} | Correct: {correct})*")
+
+    lines.append(f"\n**Score: {score}/{len(questions)}**")
+    return "\n\n".join(lines)
 
 with gr.Blocks(
     title="NotebookLM Clone - Notebooks",
@@ -528,7 +601,8 @@ with gr.Blocks(
             api_name=False,
         ).then(_on_select, None, [status]).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
 
-    # ── Text Input Section ────────────────────────────────────
+    
+    # Text Input Section 
     gr.Markdown("---")
     gr.Markdown("## Add Text")
     gr.Markdown("Select a notebook above, then paste or type your text.")
@@ -549,18 +623,70 @@ with gr.Blocks(
     submit_btn = gr.Button("Save & Process", variant="primary")
 
     upload_status = gr.Markdown("", elem_classes=["status"])
-    sources_display = gr.Markdown("")
+
+   # Quiz Section 
+    gr.Markdown("---")
+    gr.Markdown("## Generate Quiz")
+    gr.Markdown("Select a source type then generate a quiz.")
+
+    quiz_source_type = gr.Radio(
+        choices=["Text", "PDF", "URL", "All"],
+        value="All",
+        label="Source type",
+    )
+    quiz_pdf_dd = gr.Dropdown(
+        label="Select PDF",
+        choices=[],
+        value=None,
+        visible=False,
+    )
+    generate_quiz_btn = gr.Button("Generate Quiz", variant="primary")
+    quiz_status = gr.Markdown("")
+    quiz_state = gr.State([])
+
+    quiz_components = []
+    for i in range(5):
+        with gr.Group(visible=False) as q_group:
+            q_text = gr.Markdown("")
+            q_radio = gr.Radio(choices=[], label="Your answer", visible=False)
+            q_textbox = gr.Textbox(label="Your answer", visible=False)
+        quiz_components.append({"group": q_group, "text": q_text, "radio": q_radio, "textbox": q_textbox})
+
+    submit_quiz_btn = gr.Button("Submit Answers", variant="secondary", visible=False)
+    quiz_results = gr.Markdown("")
 
     submit_btn.click(
         _do_upload,
         inputs=[txt_input, txt_title, selected_notebook_id],
-        outputs=[upload_status, sources_display],
+        outputs=[upload_status],
     )
 
-    selected_notebook_id.change(
-        _load_sources,
-        inputs=[selected_notebook_id],
-        outputs=[sources_display],
+    quiz_source_type.change(
+        lambda t, nb: _get_notebook_pdfs(nb) if t == "PDF" else gr.update(visible=False, choices=[], value=None),
+        inputs=[quiz_source_type, selected_notebook_id],
+        outputs=[quiz_pdf_dd],
+    )
+
+    quiz_all_outputs = [quiz_status, quiz_state]
+    for c in quiz_components:
+        quiz_all_outputs += [c["group"], c["text"], c["radio"], c["textbox"]]
+    quiz_all_outputs += [submit_quiz_btn, quiz_results]
+
+    generate_quiz_btn.click(
+        _generate_quiz,
+        inputs=[selected_notebook_id, quiz_source_type, quiz_pdf_dd],
+        outputs=quiz_all_outputs,
+        api_name=False,
+    )
+
+    submit_quiz_btn.click(
+        _submit_quiz,
+        inputs=[quiz_state] + [c["radio"] for c in quiz_components] + [c["textbox"] for c in quiz_components],
+        outputs=[quiz_results],
+        api_name=False,
     )
 
 demo.launch()
+
+
+
