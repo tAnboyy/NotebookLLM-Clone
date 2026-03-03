@@ -9,7 +9,8 @@ from backend.chat_service import save_message, load_chat
 from backend.retrieval_service import retrieve_chunks
 
 MAX_HISTORY_MESSAGES = 20
-DEFAULT_MODEL = "mistralai/Mistral-7B-Instruct-v0.2"
+# Llama 3.2 3B - try :hf-inference to use HF's serverless (free tier)
+DEFAULT_MODEL = "meta-llama/Llama-3.2-3B-Instruct:hf-inference"
 TOP_K = 5
 
 _client: OpenAI | None = None
