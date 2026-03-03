@@ -31,6 +31,7 @@ from backend.podcast_service import generate_podcast, generate_podcast_audio
 from backend.chat_service import load_chat
 from backend.rag_service import rag_chat
 from backend.report_service import generate_report
+from backend.db import supabase
 
 import hashlib
 _log("4. Imports done.")
@@ -370,6 +371,37 @@ def _safe_ingest_url(url, selected_id, profile: gr.OAuthProfile | None = None):
     except Exception as error:
         return "", f"Error ingesting URL: {error}"
     
+def _list_ingested_urls(selected_id, profile: gr.OAuthProfile | None):
+    user_id = _user_id(profile)
+    if not user_id or not selected_id:
+        return gr.update(choices=[], value=None)
+
+    res = (
+        supabase.table("chunks")
+        .select("source_id, metadata")
+        .eq("notebook_id", str(selected_id))
+        .execute()
+    )
+
+    rows = res.data or []
+
+    # Deduplicate by source_id
+    seen = {}
+    for row in rows:
+        sid = row.get("source_id")
+        meta = row.get("metadata") or {}
+        if sid and sid not in seen:
+            # Only include entries that have a URL in metadata
+            url = meta.get("url")
+            if url:
+                seen[sid] = url
+
+    # Display URLs (but keep source_id internally)
+    choices = [(url, sid) for sid, url in seen.items()]
+    first_option = choices[0]
+
+    return gr.update(choices=choices, value=first_option)
+    
 def _safe_remove_url(url, selected_id, profile: gr.OAuthProfile | None = None):
     try:
         user_id = _user_id(profile)
@@ -491,7 +523,7 @@ def _safe_generate_podcast_audio(notebook_id, script, profile: gr.OAuthProfile |
 def _get_notebook_pdfs(notebook_id):
     if not notebook_id:
         return gr.update(choices=[], value=None, visible=False)
-    from backend.db import supabase
+
     result = (
         supabase.table("chunks")
         .select("source_id")
@@ -670,6 +702,15 @@ with gr.Blocks(
                     scale=3,
                 )
                 ingest_url_btn = gr.Button("Ingest URL", variant="primary", scale=1)
+            
+            with gr.Row(elem_classes=["section-row"]):
+                url_dd = gr.Dropdown(
+                    label="Uploaded URLs",
+                    choices=[],
+                    value=None,
+                    scale=3,
+                    allow_custom_value=False
+                )
                 remove_url_btn = gr.Button("Delete URL", variant="stop", scale=1)
 
         gr.HTML("<br>")
@@ -805,14 +846,14 @@ with gr.Blocks(
         inputs=[url_txt, selected_notebook_id],
         outputs=[url_txt, status],
         api_name=False,
-    )
+    ).then(_list_ingested_urls, inputs=[selected_notebook_id], outputs=[url_dd])
 
     remove_url_btn.click(
         _safe_remove_url,
-        inputs=[url_txt, selected_notebook_id],
-        outputs=[url_txt, status],
+        inputs=[url_dd, selected_notebook_id],
+        outputs=[url_dd, status],
         api_name=False
-    )
+    ).then(_list_ingested_urls, inputs=[selected_notebook_id], outputs=[url_dd])
 
     remove_pdf_btn.click(
         _safe_remove_pdf,
