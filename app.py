@@ -84,8 +84,8 @@ CUSTOM_CSS = """
 .hero-title { font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 8px 0; }
 .hero-sub { font-size: 1rem; color: #64748b; margin: 0; line-height: 1.5; }
 
-.section-card { padding: 24px; border-radius: 16px; background: #f8fafc; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.notebook-card { padding: 14px 20px; border-radius: 12px; background: #fff; margin-bottom: 8px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; transition: background 0.15s ease; }
+.section-card { padding: 24px; border-radius: 16px; background: #f8fafc; margin: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.notebook-card { padding: 14px 20px; border-radius: 12px; background: #fff; margin: 8px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; transition: background 0.15s ease; }
 .notebook-card:hover { background: #f8fafc; }
 
 .section-title { font-size: 1.125rem; font-weight: 600; color: #1e293b; margin: 0 0 16px 0; }
@@ -93,7 +93,7 @@ CUSTOM_CSS = """
 .section-row .gr-textbox { flex: 1 !important; }
 .section-row .gr-button { border-radius: 10px !important; padding: 10px 20px !important; }
 
-.status { font-size: 0.875rem; color: #64748b; margin-top: 16px; padding: 12px 16px; background: #f1f5f9; border-radius: 12px; }
+.status { font-size: 0.875rem; color: #64748b; margin: 16px; padding: 12px 16px; background: #f1f5f9; border-radius: 12px; }
 
 @media (prefers-color-scheme: dark) {
   .hero-title { color: #f1f5f9 !important; }
@@ -111,6 +111,11 @@ CUSTOM_CSS = """
 .dark .notebook-card { background: #334155 !important; border-color: #475569; }
 .dark .notebook-card:hover { background: #475569 !important; }
 .dark .status { color: #94a3b8 !important; background: #334155 !important; }
+
+#delete-btn { border-radius: 16px; background: #FF0000; }
+#rename-btn { border-radius: 16px; background: #008000; }
+#select-btn { border-radius: 16px; }
+#ingest-url-btn { border-radius: 16px; }
 """
 
 def _user_id(profile: gr.OAuthProfile | None) -> str | None:
@@ -612,7 +617,7 @@ with gr.Blocks(
 ) as demo:
     with gr.Row(elem_classes=["header-bar"]):
         gr.Markdown("### 📓 NotebookLM Clone")
-        login_btn = gr.LoginButton(value="🤗 Login with Hugging Face", size="lg")
+        login_btn = gr.LoginButton(value="🤗 Login with Hugging Face", size="lg", elem_id=["lgn-btn"])
 
     with gr.Row(visible=False) as auth_info_row:
         auth_text = gr.Markdown("", elem_id="auth-text")
@@ -643,6 +648,51 @@ with gr.Blocks(
                 create_btn = gr.Button("Create", variant="primary", size="sm")
 
         with gr.Group(elem_classes=["section-card"]):
+            gr.HTML("<br>")
+            gr.Markdown("**Your Notebooks**", elem_classes=["section-title"])
+            notebook_status = gr.Markdown("Sign in with Hugging Face to manage notebooks.", elem_classes=["status"])
+            gr.HTML("<br>")
+
+            @gr.render(inputs=[nb_state])
+            def render_notebooks(state):
+                if not state:
+                    gr.Markdown("No notebooks yet. Create one to get started.")
+                else:
+                    for i, (nb_id, name) in enumerate(state):
+                        idx = i
+                        with gr.Row(elem_classes=["notebook-card"]):
+                            name_txt = gr.Textbox(value=name, show_label=False, scale=4, min_width=240, key=f"nb-name-{nb_id}")
+                            select_btn = gr.Button("Select", variant="primary", scale=1, min_width=80, size="sm", elem_id="select-btn")
+                            rename_btn = gr.Button("Rename", variant="secondary", scale=1, min_width=80, size="sm", elem_id="rename-btn")
+                            delete_btn = gr.Button("Delete", variant="secondary", scale=1, min_width=80, size="sm", elem_id="delete-btn")
+
+                            def on_select(nb_id=nb_id, name_txt=name_txt):
+                                return nb_id, name_txt
+
+                            def on_select_status(name_txt=name_txt):
+                                return f"Selected notebook updated. Use this for chat/ingestion.\n**Notebook: {name_txt}**"
+
+                            select_btn.click(
+                                on_select,
+                                inputs=None,
+                                outputs=[selected_notebook_id, name_txt],
+                            ).then(on_select_status, inputs=[name_txt], outputs=[notebook_status]).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
+
+                            rename_btn.click(
+                                _safe_rename,
+                                inputs=[gr.State(idx), name_txt, nb_state, selected_notebook_id],
+                                outputs=[nb_state, selected_notebook_id, notebook_status],
+                                api_name=False,
+                            )
+
+                            delete_btn.click(
+                                _safe_delete,
+                                inputs=[gr.State(idx), nb_state, selected_notebook_id],
+                                outputs=[nb_state, selected_notebook_id, notebook_status],
+                                api_name=False,
+                            ).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
+        
+        with gr.Group(elem_classes=["section-card"]):
             gr.Markdown("**Sources**", elem_classes=["section-title"])
             gr.Markdown("*Upload PDFs, ingest URLs, or add text to your selected notebook*")
             with gr.Row(elem_classes=["section-row"]):
@@ -661,7 +711,7 @@ with gr.Blocks(
                     scale=3,
                     allow_custom_value=False,
                 )
-                remove_pdf_btn = gr.Button("Remove selected PDF", variant="stop", scale=1)
+                remove_pdf_btn = gr.Button("Remove selected PDF", variant="stop", scale=1, elem_id="delete-btn")
             with gr.Row(elem_classes=["section-row"]):
                 url_txt = gr.Textbox(
                     label="Ingest web URL",
@@ -669,58 +719,15 @@ with gr.Blocks(
                     value="",
                     scale=3,
                 )
-                ingest_url_btn = gr.Button("Ingest URL", variant="primary", scale=1)
-                remove_url_btn = gr.Button("Delete URL", variant="stop", scale=1)
+                ingest_url_btn = gr.Button("Ingest URL", variant="primary", scale=1, elem_id="ingest-url-btn")
+                remove_url_btn = gr.Button("Delete URL", variant="stop", scale=1, elem_id="delete-btn")
 
-        gr.HTML("<br>")
-        gr.Markdown("**Your Notebooks**", elem_classes=["section-title"])
-        gr.Markdown("*Selected notebook is used for chat and ingestion*", elem_id="sub-hint")
-        gr.HTML("<br>")
+            status = gr.Markdown("Sign in with Hugging Face to upload context material.", elem_classes=["status"])
 
-        status = gr.Markdown("Sign in with Hugging Face to manage notebooks.", elem_classes=["status"])
-
-        @gr.render(inputs=[nb_state])
-        def render_notebooks(state):
-            if not state:
-                gr.Markdown("No notebooks yet. Create one to get started.")
-            else:
-                for i, (nb_id, name) in enumerate(state):
-                    idx = i
-                    with gr.Row(elem_classes=["notebook-card"]):
-                        name_txt = gr.Textbox(value=name, show_label=False, scale=4, min_width=240, key=f"nb-name-{nb_id}")
-                        select_btn = gr.Button("Select", variant="primary", scale=1, min_width=80, size="sm")
-                        rename_btn = gr.Button("Rename", variant="secondary", scale=1, min_width=80, size="sm")
-                        delete_btn = gr.Button("Delete", variant="secondary", scale=1, min_width=80, size="sm")
-
-                        def on_select(nb_id=nb_id):
-                            return nb_id
-
-                        def on_select_status():
-                            return "Selected notebook updated. Use this for chat/ingestion."
-
-                        select_btn.click(
-                            on_select,
-                            inputs=None,
-                            outputs=[selected_notebook_id],
-                        ).then(on_select_status, None, [status]).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
-
-                        rename_btn.click(
-                            _safe_rename,
-                            inputs=[gr.State(idx), name_txt, nb_state, selected_notebook_id],
-                            outputs=[nb_state, selected_notebook_id, status],
-                            api_name=False,
-                        )
-
-                        delete_btn.click(
-                            _safe_delete,
-                            inputs=[gr.State(idx), nb_state, selected_notebook_id],
-                            outputs=[nb_state, selected_notebook_id, status],
-                            api_name=False,
-                        ).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
-
-        gr.HTML("<br>")
-
-        with gr.Group(elem_classes=["section-card"]):
+            gr.HTML("<br>")
+            gr.HTML("<br>")
+            gr.HTML("<br>")
+            
             gr.Markdown("**Add Text**", elem_classes=["section-title"])
             gr.Markdown("*Select a notebook above, then paste or type your text*")
             with gr.Row():
