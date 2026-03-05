@@ -69,7 +69,32 @@ CUSTOM_CSS = """
 #auth-text { white-space: nowrap; margin: 8px 0 16px 0; font-size: 0.95rem; opacity: 0.9; }
 .gr-button { padding: 14px 28px !important; font-size: 0.9rem !important; border-radius: 12px !important; white-space: nowrap !important; width: auto !important; }
 .gr-button[aria-label*="Logout"] { min-width: auto !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; }
-.header-bar .gr-button { padding-left: 40px !important; padding-right: 40px !important; min-width: 220px !important; font-size: 0.8rem !important; }
+.header-bar .gr-button { padding-left: 28px !important; padding-right: 28px !important; min-width: 220px !important; font-size: 0.9rem !important; }
+#login-btn,
+#login-btn.gr-button,
+#login-btn button,
+#login-btn .gr-button {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    width: auto !important;
+    max-width: 100% !important;
+    min-width: 220px !important;
+    overflow: hidden !important;
+}
+#login-btn p,
+#login-btn span,
+#login-btn .md,
+#login-btn .md p {
+    margin: 0 !important;
+    font-size: 0.95rem !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
 .dark .header-bar { border-bottom: 1px solid #334155; }
 
 .hero-section { margin-bottom: 16px; }
@@ -84,16 +109,22 @@ CUSTOM_CSS = """
 .hero-title { font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 8px 0; }
 .hero-sub { font-size: 1rem; color: #64748b; margin: 0; line-height: 1.5; }
 
-.section-card { padding: 24px; border-radius: 16px; background: #f8fafc; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.notebook-card { padding: 14px 20px; border-radius: 12px; background: #fff; margin-bottom: 8px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; transition: background 0.15s ease; }
+.section-card { padding: 24px; border-radius: 16px; background: #f8fafc; margin: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.notebook-card { padding: 14px 20px; border-radius: 12px; background: #fff; margin: 8px 0 !important; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; transition: background 0.15s ease; width: 100% !important; box-sizing: border-box !important; overflow: hidden; }
 .notebook-card:hover { background: #f8fafc; }
+.notebook-selected { border: 2px solid #3b82f6 !important; box-shadow: none !important; }
+
+.manager-card { border-top: 4px solid #3b82f6; }
+.sources-card { border-top: 4px solid #14b8a6; }
+.chat-card { border-top: 4px solid #8b5cf6; }
+.artifacts-card { border-top: 4px solid #f97316; }
 
 .section-title { font-size: 1.125rem; font-weight: 600; color: #1e293b; margin: 0 0 16px 0; }
 .section-row { display: flex !important; align-items: center !important; gap: 16px !important; margin-bottom: 12px; }
 .section-row .gr-textbox { flex: 1 !important; }
 .section-row .gr-button { border-radius: 10px !important; padding: 10px 20px !important; }
 
-.status { font-size: 0.875rem; color: #64748b; margin-top: 16px; padding: 12px 16px; background: #f1f5f9; border-radius: 12px; }
+.status { font-size: 0.875rem; color: #64748b; margin: 16px; padding: 12px 16px; background: #f1f5f9; border-radius: 12px; }
 
 @media (prefers-color-scheme: dark) {
   .hero-title { color: #f1f5f9 !important; }
@@ -102,6 +133,11 @@ CUSTOM_CSS = """
   .section-title { color: #f1f5f9 !important; }
   .notebook-card { background: #334155 !important; border-color: #475569; }
   .notebook-card:hover { background: #475569 !important; }
+    .notebook-selected { border: 2px solid #60a5fa !important; box-shadow: none !important; }
+    .manager-card { border-top-color: #60a5fa; }
+    .sources-card { border-top-color: #2dd4bf; }
+    .chat-card { border-top-color: #a78bfa; }
+    .artifacts-card { border-top-color: #fb923c; }
   .status { color: #94a3b8 !important; background: #334155 !important; }
 }
 .dark .hero-title { color: #f1f5f9 !important; }
@@ -111,6 +147,11 @@ CUSTOM_CSS = """
 .dark .notebook-card { background: #334155 !important; border-color: #475569; }
 .dark .notebook-card:hover { background: #475569 !important; }
 .dark .status { color: #94a3b8 !important; background: #334155 !important; }
+
+#delete-btn { border-radius: 16px; background: #FF0000; }
+#rename-btn { border-radius: 16px; background: #008000; }
+#select-btn { border-radius: 16px; }
+#ingest-url-btn { border-radius: 16px; }
 """
 
 def _user_id(profile: gr.OAuthProfile | None) -> str | None:
@@ -201,7 +242,31 @@ def _initial_load(profile: gr.OAuthProfile | None = None):
     status = f"Signed in as {user_id}" if user_id else "Sign in with Hugging Face to manage notebooks."
     auth_update = f"You are logged in as {getattr(profile, 'name', None) or user_id} ({_user_id(profile)})" if user_id else ""
     auth_row_visible = bool(user_id)
-    return state, selected, status, auth_update, gr.update(visible=auth_row_visible), gr.update(visible=bool(user_id)), gr.update(visible=not bool(user_id))
+    source_status = "" if user_id else "Sign in with Hugging Face to upload context material."
+    notebook_status_update = gr.update(
+        value="Sign in with Hugging Face to manage notebooks." if not user_id else "",
+        visible=not bool(user_id),
+    )
+    return (
+        state,
+        selected,
+        notebook_status_update,
+        auth_update,
+        gr.update(visible=auth_row_visible),
+        gr.update(visible=bool(user_id)),
+        gr.update(visible=not bool(user_id)),
+        source_status,
+    )
+
+
+def _selected_notebook_text(selected_id, state) -> str:
+    if not selected_id:
+        return "**Selected notebook:** None"
+    name_map = {str(notebook_id): name for notebook_id, name in (state or [])}
+    name = name_map.get(str(selected_id))
+    if name:
+        return f"**Selected notebook:** {name}"
+    return "**Selected notebook:** Unknown"
 
 
 REPORT_SCOPE_LABELS = {
@@ -670,7 +735,7 @@ with gr.Blocks(
 ) as demo:
     with gr.Row(elem_classes=["header-bar"]):
         gr.Markdown("### 📓 NotebookLM Clone")
-        login_btn = gr.LoginButton(value="🤗 Login with Hugging Face", size="lg")
+        login_btn = gr.LoginButton(value="Login with Hugging Face", size="lg", elem_id="login-btn")
 
     with gr.Row(visible=False) as auth_info_row:
         auth_text = gr.Markdown("", elem_id="auth-text")
@@ -678,7 +743,7 @@ with gr.Blocks(
     gr.HTML("""
     <div class="container hero-section">
         <h1 class="hero-title">📓 NotebookLM Clone</h1>
-        <p class="hero-sub">Chat with your documents. Generate reports, quizzes, and podcasts with citations.</p>
+        <p class="hero-sub">Chat with your documents. Generate reports, quizzes, and podcasts.</p>
     </div>
     """)
 
@@ -688,21 +753,86 @@ with gr.Blocks(
     with gr.Column(visible=False) as app_content:
         nb_state = gr.State([])
         selected_notebook_id = gr.State(None)
+        chat_history_state = gr.State([])
+        quiz_state = gr.State([])
 
-        with gr.Group(elem_classes=["create-strip"]):
-            with gr.Row(elem_classes=["create-row"]):
-                gr.Markdown("Create new notebook", elem_classes=["create-label"])
-                create_txt = gr.Textbox(
-                    placeholder="Enter new notebook name",
-                    show_label=False,
-                    container=False,
-                    value="",
-                )
-                create_btn = gr.Button("Create", variant="primary", size="sm")
+        with gr.Group(elem_classes=["section-card", "manager-card"]):
+            gr.Markdown("**Notebook Manager**", elem_classes=["section-title"])
+            selected_notebook_md = gr.Markdown("**Selected notebook:** None", elem_classes=["status"])
 
-        with gr.Group(elem_classes=["section-card"]):
-            gr.Markdown("**Sources**", elem_classes=["section-title"])
-            gr.Markdown("*Upload PDFs, ingest URLs, or add text to your selected notebook*")
+            with gr.Group(elem_classes=["create-strip"]):
+                with gr.Row(elem_classes=["create-row"]):
+                    gr.Markdown("Create new notebook", elem_classes=["create-label"])
+                    create_txt = gr.Textbox(
+                        placeholder="Enter new notebook name",
+                        show_label=False,
+                        container=False,
+                        value="",
+                    )
+                    create_btn = gr.Button("Create", variant="primary", size="sm")
+
+            notebook_status = gr.Markdown("", elem_classes=["status"], visible=False)
+
+            @gr.render(inputs=[nb_state, selected_notebook_id])
+            def render_notebooks(state, selected_id):
+                if not state:
+                    gr.Markdown("No notebooks yet. Create one to get started.")
+                else:
+                    for i, (nb_id, name) in enumerate(state):
+                        idx = i
+                        is_selected = str(nb_id) == str(selected_id)
+                        row_class = ["notebook-card", "notebook-selected"] if is_selected else ["notebook-card"]
+                        with gr.Row(elem_classes=row_class):
+                            name_txt = gr.Textbox(
+                                value=name,
+                                show_label=False,
+                                scale=4,
+                                min_width=240,
+                                key=f"nb-name-{nb_id}",
+                            )
+                            select_btn = gr.Button(
+                                "Selected" if is_selected else "Select",
+                                variant="primary" if is_selected else "secondary",
+                                scale=1,
+                                min_width=90,
+                                size="sm",
+                            )
+                            rename_btn = gr.Button("Rename", variant="secondary", scale=1, min_width=80, size="sm")
+                            delete_btn = gr.Button("Delete", variant="stop", scale=1, min_width=80, size="sm")
+
+                            def on_select(nb_id=nb_id):
+                                return nb_id
+
+                            def on_select_status(name=name):
+                                return f"Selected notebook: {name}"
+
+                            select_btn.click(
+                                on_select,
+                                inputs=None,
+                                outputs=[selected_notebook_id],
+                                api_name=False,
+                            ).then(on_select_status, inputs=None, outputs=[notebook_status], api_name=False)
+
+                            rename_btn.click(
+                                _safe_rename,
+                                inputs=[gr.State(idx), name_txt, nb_state, selected_notebook_id],
+                                outputs=[nb_state, selected_notebook_id, notebook_status],
+                                api_name=False,
+                            )
+
+                            delete_btn.click(
+                                _safe_delete,
+                                inputs=[gr.State(idx), nb_state, selected_notebook_id],
+                                outputs=[nb_state, selected_notebook_id, notebook_status],
+                                api_name=False,
+                            )
+
+        with gr.Group(elem_classes=["section-card", "sources-card"]):
+            gr.Markdown("**Upload Sources**", elem_classes=["section-title"])
+            gr.Markdown("*Add PDF, URL, and text content into the selected notebook.*")
+
+            source_status = gr.Markdown("", elem_classes=["status"])
+
             with gr.Row(elem_classes=["section-row"]):
                 pdf_upload_btn = gr.UploadButton(
                     "Upload PDFs",
@@ -711,6 +841,7 @@ with gr.Blocks(
                     type="filepath",
                     variant="secondary",
                 )
+
             with gr.Row(elem_classes=["section-row"]):
                 uploaded_pdf_dd = gr.Dropdown(
                     label="Uploaded PDFs",
@@ -720,6 +851,7 @@ with gr.Blocks(
                     allow_custom_value=False,
                 )
                 remove_pdf_btn = gr.Button("Remove selected PDF", variant="stop", scale=1)
+
             with gr.Row(elem_classes=["section-row"]):
                 url_txt = gr.Textbox(
                     label="Ingest web URL",
@@ -730,63 +862,14 @@ with gr.Blocks(
                 ingest_url_btn = gr.Button("Ingest URL", variant="primary", scale=1)
                 remove_url_btn = gr.Button("Delete URL", variant="stop", scale=1)
 
-        gr.HTML("<br>")
-        gr.Markdown("**Your Notebooks**", elem_classes=["section-title"])
-        gr.Markdown("*Selected notebook is used for chat and ingestion*", elem_id="sub-hint")
-        gr.HTML("<br>")
-
-        status = gr.Markdown("Sign in with Hugging Face to manage notebooks.", elem_classes=["status"])
-
-        @gr.render(inputs=[nb_state])
-        def render_notebooks(state):
-            if not state:
-                gr.Markdown("No notebooks yet. Create one to get started.")
-            else:
-                for i, (nb_id, name) in enumerate(state):
-                    idx = i
-                    with gr.Row(elem_classes=["notebook-card"]):
-                        name_txt = gr.Textbox(value=name, show_label=False, scale=4, min_width=240, key=f"nb-name-{nb_id}")
-                        select_btn = gr.Button("Select", variant="primary", scale=1, min_width=80, size="sm")
-                        rename_btn = gr.Button("Rename", variant="secondary", scale=1, min_width=80, size="sm")
-                        delete_btn = gr.Button("Delete", variant="secondary", scale=1, min_width=80, size="sm")
-
-                        def on_select(nb_id=nb_id):
-                            return nb_id
-
-                        def on_select_status():
-                            return "Selected notebook updated. Use this for chat/ingestion."
-
-                        select_btn.click(
-                            on_select,
-                            inputs=None,
-                            outputs=[selected_notebook_id],
-                        ).then(on_select_status, None, [status]).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
-
-                        rename_btn.click(
-                            _safe_rename,
-                            inputs=[gr.State(idx), name_txt, nb_state, selected_notebook_id],
-                            outputs=[nb_state, selected_notebook_id, status],
-                            api_name=False,
-                        )
-
-                        delete_btn.click(
-                            _safe_delete,
-                            inputs=[gr.State(idx), nb_state, selected_notebook_id],
-                            outputs=[nb_state, selected_notebook_id, status],
-                            api_name=False,
-                        ).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
-
-        gr.HTML("<br>")
-
-        with gr.Group(elem_classes=["section-card"]):
-            gr.Markdown("**Add Text**", elem_classes=["section-title"])
-            gr.Markdown("*Select a notebook above, then paste or type your text*")
-            with gr.Row():
+            gr.Markdown("**Text Source**", elem_classes=["section-title"])
+            with gr.Row(elem_classes=["section-row"]):
                 txt_title = gr.Textbox(
                     label="Title",
                     placeholder="Give this text a name (e.g. 'Lecture Notes Week 1')",
                     scale=1,
                 )
+
             txt_input = gr.Textbox(
                 label="Text Content",
                 placeholder="Paste or type your text here...",
@@ -794,12 +877,25 @@ with gr.Blocks(
             )
             submit_btn = gr.Button("Save & Process", variant="primary")
             upload_status = gr.Markdown("", elem_classes=["status"])
-            sources_display = gr.Markdown("")
+            sources_display = gr.Markdown("No sources yet.")
 
-        gr.HTML("<br>")
-        with gr.Group(elem_classes=["section-card"]):
-            gr.Markdown("**Reports**", elem_classes=["section-title"])
-            gr.Markdown("*Generate a concise report based on your uploaded PDFs, ingested URLs, or added text.*")
+        with gr.Group(elem_classes=["section-card", "chat-card"]):
+            gr.Markdown("**Chat**", elem_classes=["section-title"])
+            gr.Markdown("*Ask questions about your notebook sources. Answers are grounded in retrieved chunks with citations.*")
+            chatbot = gr.Chatbot(label="Chat history", height=400)
+            chat_input = gr.Textbox(
+                label="Message",
+                placeholder="Ask a question about your sources...",
+                show_label=False,
+                lines=2,
+            )
+            chat_submit_btn = gr.Button("Send", variant="primary")
+            chat_status = gr.Markdown("", elem_classes=["status"])
+
+        with gr.Group(elem_classes=["section-card", "artifacts-card"]):
+            gr.Markdown("**Artifacts**", elem_classes=["section-title"])
+
+            gr.Markdown("**Report**")
             with gr.Row(elem_classes=["section-row"]):
                 report_scope_dd = gr.Dropdown(
                     label="Report scope",
@@ -811,27 +907,50 @@ with gr.Blocks(
             report_status = gr.Markdown("Select a scope and click generate.", elem_classes=["status"])
             report_output = gr.Markdown("", elem_id="report-output")
 
-        with gr.Group(elem_classes=["section-card"]):
-            gr.Markdown("**Chat**", elem_classes=["section-title"])
-            gr.Markdown("*Ask questions about your notebook sources. Answers are grounded in retrieved chunks with citations.*")
-            chat_history_state = gr.State([])
-            chatbot = gr.Chatbot(label="Chat history", height=400)
-            chat_input = gr.Textbox(
-                label="Message",
-                placeholder="Ask a question about your sources...",
-                show_label=False,
-                lines=2,
+            gr.Markdown("**Podcast**")
+            with gr.Row(elem_classes=["section-row"]):
+                podcast_btn = gr.Button("Generate Podcast", variant="primary")
+                podcast_audio_btn = gr.Button("Generate Podcast Audio", variant="secondary")
+            podcast_status = gr.Markdown("", elem_classes=["status"])
+            podcast_script = gr.Markdown("")
+            podcast_audio = gr.Audio(label="Podcast Audio", type="filepath")
+
+            gr.Markdown("**Quiz**")
+            gr.Markdown("Select a source type then generate a quiz.")
+            quiz_source_type = gr.Radio(
+                choices=["Text", "PDF", "URL", "All"],
+                value="All",
+                label="Source type",
             )
-            chat_submit_btn = gr.Button("Send", variant="primary")
-            chat_status = gr.Markdown("", elem_classes=["status"])
+            quiz_pdf_dd = gr.Dropdown(
+                label="Select PDF",
+                choices=[],
+                value=None,
+                visible=False,
+            )
+            generate_quiz_btn = gr.Button("Generate Quiz", variant="primary")
+            quiz_status = gr.Markdown("")
+
+            quiz_components = []
+            for i in range(5):
+                with gr.Group(visible=False) as q_group:
+                    q_text = gr.Markdown("")
+                    q_radio = gr.Radio(choices=[], label="Your answer", visible=False)
+                    q_textbox = gr.Textbox(label="Your answer", visible=False)
+                quiz_components.append({"group": q_group, "text": q_text, "radio": q_radio, "textbox": q_textbox})
+
+            submit_quiz_btn = gr.Button("Submit Answers", variant="secondary", visible=False)
+            quiz_results = gr.Markdown("")
 
     demo.load(
         _initial_load,
         inputs=None,
-        outputs=[nb_state, selected_notebook_id, status, auth_text, auth_info_row, app_content, login_container],
+        outputs=[nb_state, selected_notebook_id, notebook_status, auth_text, auth_info_row, app_content, login_container, source_status],
         api_name=False,
     )
     demo.load(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd], api_name=False)
+    demo.load(_load_sources, inputs=[selected_notebook_id], outputs=[sources_display], api_name=False)
+    demo.load(_selected_notebook_text, inputs=[selected_notebook_id, nb_state], outputs=[selected_notebook_md], api_name=False)
 
     def _on_notebook_select_for_chat(notebook_id):
         hist, _ = _load_chat_history(notebook_id)
@@ -843,134 +962,56 @@ with gr.Blocks(
         outputs=[chat_history_state, chatbot],
         api_name=False,
     )
+    selected_notebook_id.change(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd], api_name=False)
+    selected_notebook_id.change(_load_sources, inputs=[selected_notebook_id], outputs=[sources_display], api_name=False)
+    selected_notebook_id.change(_selected_notebook_text, inputs=[selected_notebook_id, nb_state], outputs=[selected_notebook_md], api_name=False)
+    nb_state.change(_selected_notebook_text, inputs=[selected_notebook_id, nb_state], outputs=[selected_notebook_md], api_name=False)
 
     create_btn.click(
         _safe_create,
         inputs=[create_txt, nb_state, selected_notebook_id],
-        outputs=[create_txt, nb_state, selected_notebook_id, status],
+        outputs=[create_txt, nb_state, selected_notebook_id, notebook_status],
         api_name=False,
     ).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
 
     pdf_upload_btn.upload(
         _safe_upload_pdfs,
         inputs=[pdf_upload_btn, selected_notebook_id],
-        outputs=[status],
+        outputs=[source_status],
         api_name=False,
     ).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
 
     ingest_url_btn.click(
         _safe_ingest_url,
         inputs=[url_txt, selected_notebook_id],
-        outputs=[url_txt, status],
+        outputs=[url_txt, source_status],
         api_name=False,
     )
 
     remove_url_btn.click(
         _safe_remove_url,
         inputs=[url_txt, selected_notebook_id],
-        outputs=[url_txt, status],
+        outputs=[url_txt, source_status],
         api_name=False
     )
 
     remove_pdf_btn.click(
         _safe_remove_pdf,
         inputs=[uploaded_pdf_dd, selected_notebook_id],
-        outputs=[status],
+        outputs=[source_status],
         api_name=False,
     ).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
-
-
-    # Text Input Section 
-    gr.Markdown("---")
-    gr.Markdown("## Add Text")
-    gr.Markdown("Select a notebook above, then paste or type your text.")
-
-    with gr.Row():
-        txt_title = gr.Textbox(
-            label="Title",
-            placeholder="Give this text a name (e.g. 'Lecture Notes Week 1')",
-            scale=1,
-        )
-
-    txt_input = gr.Textbox(
-        label="Text Content",
-        placeholder="Paste or type your text here...",
-        lines=10,
-    )
-
-    submit_btn = gr.Button("Save & Process", variant="primary")
-
-    upload_status = gr.Markdown("", elem_classes=["status"])
-
-    # Podcast Section
-    gr.Markdown("---")
-    gr.Markdown("## Podcast")
-    gr.Markdown("Generate a podcast script for the selected notebook using all ingested content.")
-    with gr.Row():
-        podcast_btn = gr.Button("Generate Podcast", variant="primary")
-        podcast_audio_btn = gr.Button("Generate Podcast Audio", variant="secondary")
-    podcast_status = gr.Markdown("", elem_classes=["status"])
-    podcast_script = gr.Markdown("")
-    podcast_audio = gr.Audio(label="Podcast Audio", type="filepath")
-
-   # Quiz Section 
-    gr.Markdown("---")
-    gr.Markdown("## Generate Quiz")
-
-    quiz_source_type = gr.Radio(
-        choices=["Text", "PDF", "URL", "All"],
-        value="All",
-        label="Source type",
-    )
-
-
-    quiz_pdf_dd = gr.Dropdown(
-        label="Select PDF (select a notebook first if empty)",
-        choices=[],
-        value=None,
-        visible=False,
-    )
-
-    demo.load(
-        _quiz_pdf_dropdown_update,
-        inputs=[quiz_source_type, selected_notebook_id],
-        outputs=[quiz_pdf_dd],
-        api_name=False,
-    )
-    
-    generate_quiz_btn = gr.Button("Generate Quiz", variant="primary")
-
-    quiz_status = gr.Markdown("")   
-    quiz_state = gr.State([])      
-    
-    quiz_components = []
-    for i in range(5):
-        with gr.Group(visible=False) as q_group:
-            q_text = gr.Markdown("")
-            q_radio = gr.Radio(choices=[], label="Your answer", visible=False)
-            q_textbox = gr.Textbox(label="Your answer", visible=False)
-        quiz_components.append({"group": q_group, "text": q_text, "radio": q_radio, "textbox": q_textbox})
-
-    submit_quiz_btn = gr.Button("Submit Answers", variant="secondary", visible=False)
-    quiz_results = gr.Markdown("")
 
     submit_btn.click(
         _do_upload,
         inputs=[txt_input, txt_title, selected_notebook_id],
         outputs=[upload_status],
-    )
+    ).then(_load_sources, inputs=[selected_notebook_id], outputs=[sources_display])
 
     report_btn.click(
         _generate_report,
         inputs=[report_scope_dd, selected_notebook_id],
         outputs=[report_status, report_output],
-        api_name=False,
-    )
-
-    selected_notebook_id.change(
-        _load_sources,
-        inputs=[selected_notebook_id],
-        outputs=[podcast_status, podcast_script],
         api_name=False,
     )
 
