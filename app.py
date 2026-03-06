@@ -256,6 +256,7 @@ def _initial_load(profile: gr.OAuthProfile | None = None):
         gr.update(visible=bool(user_id)),
         gr.update(visible=not bool(user_id)),
         source_status,
+        user_id,
     )
 
 
@@ -650,29 +651,51 @@ def _chat_history_to_pairs(messages: list[dict]) -> list[tuple[str, str]]:
     return pairs
 
 
-def _load_chat_history(notebook_id) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """Load chat for notebook. Returns (history_pairs, history_pairs) for State and Chatbot."""
+def _load_chat_history(notebook_id, user_id: str | None) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """Load chat for notebook. Returns (history_pairs, history_pairs) for State and Chatbot.
+    Only loads if notebook belongs to user (ownership validation).
+    """
     if not notebook_id:
         return [], []
-    messages = load_chat(notebook_id)
+    messages = load_chat(notebook_id, user_id)
     pairs = _chat_history_to_pairs(messages)
     return pairs, pairs
 
 
+def _format_citations(chunks: list[dict]) -> str:
+    """Format retrieved chunks for citation display."""
+    if not chunks:
+        return ""
+    lines = ["**Sources cited:**", ""]
+    for i, c in enumerate(chunks, 1):
+        meta = c.get("metadata") or {}
+        source_label = meta.get("url") or meta.get("file_name") or meta.get("file_path") or "Source"
+        content = (c.get("content") or "")[:300]
+        if len(c.get("content") or "") > 300:
+            content += "..."
+        content = content.replace("\n", " ")
+        lines.append(f"**[{i}]** *{source_label}*")
+        lines.append(f"> {content}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def _on_chat_submit(query, notebook_id, chat_history, profile: gr.OAuthProfile | None):
-    """Handle chat submit: call RAG, return updated history."""
+    """Handle chat submit: call RAG, return updated history and citations."""
     if not notebook_id:
-        return "", chat_history, "Select a notebook first."
+        return "", chat_history, "Select a notebook first.", "", gr.update(visible=False)
     if not query or not query.strip():
-        return "", chat_history, "Enter a message."
+        return "", chat_history, "Enter a message.", "", gr.update(visible=False)
     user_id = _user_id(profile)
     if not user_id:
-        return "", chat_history, "Please sign in first."
+        return "", chat_history, "Please sign in first.", "", gr.update(visible=False)
     try:
-        answer, updated = rag_chat(notebook_id, query.strip(), chat_history)
-        return "", updated, ""
+        answer, updated, chunks = rag_chat(notebook_id, query.strip(), chat_history, user_id=user_id)
+        citations_md = _format_citations(chunks)
+        accordion_update = gr.update(visible=True) if chunks else gr.update(visible=False)
+        return "", updated, "", citations_md, accordion_update
     except Exception as e:
-        return "", chat_history, f"Error: {e}"
+        return "", chat_history, f"Error: {e}", "", gr.update(visible=False)
 
 def _get_quiz_pdfs(source_type, notebook_id):
     if source_type != "PDF":
@@ -755,6 +778,7 @@ with gr.Blocks(
         selected_notebook_id = gr.State(None)
         chat_history_state = gr.State([])
         quiz_state = gr.State([])
+        user_id_state = gr.State(None)
 
         with gr.Group(elem_classes=["section-card", "manager-card"]):
             gr.Markdown("**Notebook Manager**", elem_classes=["section-title"])
@@ -891,6 +915,9 @@ with gr.Blocks(
             )
             chat_submit_btn = gr.Button("Send", variant="primary")
             chat_status = gr.Markdown("", elem_classes=["status"])
+            citations_display = gr.Accordion("📎 Sources cited (from last response)", open=True, visible=False)
+            with citations_display:
+                citations_md = gr.Markdown("", elem_classes=["status"])
 
         with gr.Group(elem_classes=["section-card", "artifacts-card"]):
             gr.Markdown("**Artifacts**", elem_classes=["section-title"])
@@ -945,21 +972,21 @@ with gr.Blocks(
     demo.load(
         _initial_load,
         inputs=None,
-        outputs=[nb_state, selected_notebook_id, notebook_status, auth_text, auth_info_row, app_content, login_container, source_status],
+        outputs=[nb_state, selected_notebook_id, notebook_status, auth_text, auth_info_row, app_content, login_container, source_status, user_id_state],
         api_name=False,
     )
     demo.load(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd], api_name=False)
     demo.load(_load_sources, inputs=[selected_notebook_id], outputs=[sources_display], api_name=False)
     demo.load(_selected_notebook_text, inputs=[selected_notebook_id, nb_state], outputs=[selected_notebook_md], api_name=False)
 
-    def _on_notebook_select_for_chat(notebook_id):
-        hist, _ = _load_chat_history(notebook_id)
-        return hist, hist
+    def _on_notebook_select_for_chat(notebook_id, user_id):
+        hist, _ = _load_chat_history(notebook_id, user_id)
+        return hist, hist, "", gr.update(visible=False)
 
     selected_notebook_id.change(
         _on_notebook_select_for_chat,
-        inputs=[selected_notebook_id],
-        outputs=[chat_history_state, chatbot],
+        inputs=[selected_notebook_id, user_id_state],
+        outputs=[chat_history_state, chatbot, citations_md, citations_display],
         api_name=False,
     )
     selected_notebook_id.change(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd], api_name=False)
@@ -1077,7 +1104,7 @@ with gr.Blocks(
     chat_submit_btn.click(
         _on_chat_submit,
         inputs=[chat_input, selected_notebook_id, chat_history_state],
-        outputs=[chat_input, chat_history_state, chat_status],
+        outputs=[chat_input, chat_history_state, chat_status, citations_md, citations_display],
         api_name=False,
     ).then(
         lambda h: (h, h),

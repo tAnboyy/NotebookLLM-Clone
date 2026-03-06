@@ -4,14 +4,15 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
+from backend.chunking import chunk_text_semantic, chunk_text_fallback
 from backend.db import supabase
 from backend.embedding_service import encode as embed_texts
 
 import requests
 from bs4 import BeautifulSoup
 
-DEFAULT_CHUNK_SIZE = 1200
-DEFAULT_CHUNK_OVERLAP = 200
+DEFAULT_CHUNK_SIZE = 512
+DEFAULT_CHUNK_OVERLAP = 80
 
 
 def _extract_pdf_text(pdf_path: Path) -> str:
@@ -23,20 +24,8 @@ def _extract_pdf_text(pdf_path: Path) -> str:
 
 
 def _chunk_text(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE, overlap: int = DEFAULT_CHUNK_OVERLAP) -> list[str]:
-    clean = " ".join(text.split())
-    if not clean:
-        return []
-
-    chunks: list[str] = []
-    start = 0
-    step = max(1, chunk_size - overlap)
-
-    while start < len(clean):
-        end = min(len(clean), start + chunk_size)
-        chunks.append(clean[start:end])
-        start += step
-
-    return chunks
+    """Semantic chunking via shared utility."""
+    return chunk_text_semantic(text, chunk_size, overlap)
 
 
 def ingest_pdf_chunks(notebook_id: str, source_id: str, pdf_path: Path) -> int:

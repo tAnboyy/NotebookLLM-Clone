@@ -8,6 +8,7 @@ import re
 from datetime import datetime
 from uuid import uuid4
 
+from backend.chunking import chunk_text_semantic
 from backend.db import supabase
 from backend.storage import save_file, get_sources_path
 
@@ -82,35 +83,24 @@ def _create_source_record(
         "storage_path": storage_path,
     }).execute()
 
-# Chunking 
+# Chunking - use semantic chunking for better retrieval (aligned with PDF/URL)
 def chunk_text(text: str, source_id: str, notebook_id: str, filename: str = "") -> list[dict]:
-    words = text.split()
-    chunk_size = 400
-    overlap = 40
+    content_chunks = chunk_text_semantic(text, chunk_size=512, overlap=80)
     chunks = []
-    i = 0
-
-    # Calculate total chunks upfront
-    total_chunks = max(1, (len(words) + chunk_size - overlap - 1) // (chunk_size - overlap))
-
-    while i < len(words):
-        chunk_words = words[i:i + chunk_size]
-        content = " ".join(chunk_words)
+    for i, content in enumerate(content_chunks):
         chunks.append({
             "id": str(uuid4()),
             "source_id": source_id,
             "notebook_id": notebook_id,
             "content": content,
-            "chunk_index": len(chunks),
+            "chunk_index": i,
             "metadata": {
-                "word_count": len(chunk_words),
+                "word_count": len(content.split()),
                 "file_name": filename,
-                "chunk_index": len(chunks),
-                "total_chunks": total_chunks,
+                "chunk_index": i,
+                "total_chunks": len(content_chunks),
             }
         })
-        i += chunk_size - overlap
-
     return chunks
 
 
