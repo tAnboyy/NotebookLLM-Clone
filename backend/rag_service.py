@@ -25,14 +25,16 @@ def _validate_citations(text: str, num_chunks: int) -> str:
     return re.sub(r"\[(\d+)\]", replace_citation, text)
 
 
-def rag_chat(notebook_id: str, query: str, chat_history: list) -> tuple[str, list]:
+def rag_chat(notebook_id: str, query: str, chat_history: list, user_id: str | None = None) -> tuple[str, list, list[dict]]:
     """
     RAG chat: retrieve chunks, build prompt, call LLM, persist, return answer and updated history.
 
     chat_history: list of [user_msg, assistant_msg] pairs (Gradio Chatbot format).
-    Returns: (assistant_reply, updated_history).
+    user_id: for ownership validation; messages are only saved if notebook belongs to user.
+    Returns: (assistant_reply, updated_history, chunks).
+    chunks: list of dicts with id, content, metadata, similarity for citation display.
     """
-    save_message(notebook_id, "user", query)
+    save_message(notebook_id, user_id, "user", query)
 
     chunks = retrieve_chunks(notebook_id, query, top_k=TOP_K)
 
@@ -72,7 +74,7 @@ def rag_chat(notebook_id: str, query: str, chat_history: list) -> tuple[str, lis
     except Exception as e:
         answer = f"Error calling model: {e}"
 
-    save_message(notebook_id, "assistant", answer)
+    save_message(notebook_id, user_id, "assistant", answer)
 
     updated_history = chat_history + [[query, answer]]
-    return answer, updated_history
+    return answer, updated_history, chunks
