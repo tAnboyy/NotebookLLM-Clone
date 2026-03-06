@@ -585,13 +585,11 @@ def _chat_history_to_pairs(messages: list[dict]) -> list[tuple[str, str]]:
     return pairs
 
 
-def _load_chat_history(notebook_id) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """Load chat for notebook. Returns (history_pairs, history_pairs) for State and Chatbot."""
+def _load_chat_history(notebook_id):
     if not notebook_id:
         return [], []
-    messages = load_chat(notebook_id)
-    pairs = _chat_history_to_pairs(messages)
-    return pairs, pairs
+    messages = load_chat(notebook_id)  # already returns dicts
+    return messages, messages
 
 
 def _on_chat_submit(query, notebook_id, chat_history, profile: gr.OAuthProfile | None):
@@ -825,6 +823,50 @@ with gr.Blocks(
             chat_submit_btn = gr.Button("Send", variant="primary")
             chat_status = gr.Markdown("", elem_classes=["status"])
 
+        # Podcast Section
+        gr.Markdown("---")
+        gr.Markdown("## Podcast")
+        gr.Markdown("Generate a podcast script for the selected notebook using all ingested content.")
+        with gr.Row():
+            podcast_btn = gr.Button("Generate Podcast", variant="primary")
+            podcast_audio_btn = gr.Button("Generate Podcast Audio", variant="secondary")
+        podcast_status = gr.Markdown("", elem_classes=["status"])
+        podcast_script = gr.Markdown("")
+        podcast_audio = gr.Audio(label="Podcast Audio", type="filepath")
+
+        # Quiz Section
+        gr.Markdown("---")
+        gr.Markdown("## Generate Quiz")
+
+        quiz_source_type = gr.Radio(
+            choices=["Text", "PDF", "URL", "All"],
+            value="All",
+            label="Source type",
+        )
+
+        quiz_pdf_dd = gr.Dropdown(
+            label="Select PDF (select a notebook first if empty)",
+            choices=[],
+            value=None,
+            visible=False,
+        )
+
+        generate_quiz_btn = gr.Button("Generate Quiz", variant="primary")
+
+        quiz_status = gr.Markdown("")
+        quiz_state = gr.State([])
+
+        quiz_components = []
+        for i in range(5):
+            with gr.Group(visible=False) as q_group:
+                q_text = gr.Markdown("")
+                q_radio = gr.Radio(choices=[], label="Your answer", visible=False)
+                q_textbox = gr.Textbox(label="Your answer", visible=False)
+            quiz_components.append({"group": q_group, "text": q_text, "radio": q_radio, "textbox": q_textbox})
+
+        submit_quiz_btn = gr.Button("Submit Answers", variant="secondary", visible=False)
+        quiz_results = gr.Markdown("")
+
     demo.load(
         _initial_load,
         inputs=None,
@@ -879,110 +921,6 @@ with gr.Blocks(
         api_name=False,
     ).then(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd])
 
-
-    # Text Input Section 
-    gr.Markdown("---")
-    gr.Markdown("## Add Text")
-    gr.Markdown("Select a notebook above, then paste or type your text.")
-
-    with gr.Row():
-        txt_title = gr.Textbox(
-            label="Title",
-            placeholder="Give this text a name (e.g. 'Lecture Notes Week 1')",
-            scale=1,
-        )
-
-    txt_input = gr.Textbox(
-        label="Text Content",
-        placeholder="Paste or type your text here...",
-        lines=10,
-    )
-
-    submit_btn = gr.Button("Save & Process", variant="primary")
-
-    upload_status = gr.Markdown("", elem_classes=["status"])
-
-    # Podcast Section
-    gr.Markdown("---")
-    gr.Markdown("## Podcast")
-    gr.Markdown("Generate a podcast script for the selected notebook using all ingested content.")
-    with gr.Row():
-        podcast_btn = gr.Button("Generate Podcast", variant="primary")
-        podcast_audio_btn = gr.Button("Generate Podcast Audio", variant="secondary")
-    podcast_status = gr.Markdown("", elem_classes=["status"])
-    podcast_script = gr.Markdown("")
-    podcast_audio = gr.Audio(label="Podcast Audio", type="filepath")
-
-   # Quiz Section 
-    gr.Markdown("---")
-    gr.Markdown("## Generate Quiz")
-
-    quiz_source_type = gr.Radio(
-        choices=["Text", "PDF", "URL", "All"],
-        value="All",
-        label="Source type",
-    )
-
-
-    quiz_pdf_dd = gr.Dropdown(
-        label="Select PDF (select a notebook first if empty)",
-        choices=[],
-        value=None,
-        visible=False,
-    )
-
-    demo.load(_initial_load, inputs=None, outputs=[nb_state, selected_notebook_id, status] + row_outputs, api_name=False)
-    demo.load(_list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd], api_name=False)
-    demo.load(
-        _quiz_pdf_dropdown_update,
-        inputs=[quiz_source_type, selected_notebook_id],
-        outputs=[quiz_pdf_dd],
-        api_name=False,
-    )
-    
-    generate_quiz_btn = gr.Button("Generate Quiz", variant="primary")
-
-    quiz_status = gr.Markdown("")   
-    quiz_state = gr.State([])      
-    
-    quiz_components = []
-    for i in range(5):
-        with gr.Group(visible=False) as q_group:
-            q_text = gr.Markdown("")
-            q_radio = gr.Radio(choices=[], label="Your answer", visible=False)
-            q_textbox = gr.Textbox(label="Your answer", visible=False)
-        quiz_components.append({"group": q_group, "text": q_text, "radio": q_radio, "textbox": q_textbox})
-
-    submit_quiz_btn = gr.Button("Submit Answers", variant="secondary", visible=False)
-    quiz_results = gr.Markdown("")
-
-    for i in range(MAX_NOTEBOOKS):
-        select_btn = row_components[i]["select"]
-        def _on_select(i=i):
-            return "Selected notebook updated. Use this for chat/ingestion."
-        
-        select_btn.click(
-            _select_notebook,
-            inputs=[gr.State(i), nb_state],
-            outputs=[selected_notebook_id],
-            api_name=False,
-        ).then(
-            _on_select, None, [status]
-        ).then(
-            _list_uploaded_pdfs, inputs=[selected_notebook_id], outputs=[uploaded_pdf_dd]
-        ).then(
-            _quiz_pdf_dropdown_update,
-            inputs=[quiz_source_type, selected_notebook_id],
-            outputs=[quiz_pdf_dd],
-            api_name=False,
-        ).then(
-            _generate_btn_update,
-            inputs=[quiz_source_type, quiz_pdf_dd],
-            outputs=[generate_quiz_btn],
-            api_name=False,
-        )
-        
-
     submit_btn.click(
         _do_upload,
         inputs=[txt_input, txt_title, selected_notebook_id],
@@ -997,10 +935,10 @@ with gr.Blocks(
     )
 
     selected_notebook_id.change(
-        _load_sources,
-        inputs=[selected_notebook_id],
-        outputs=[podcast_status, podcast_script],
-        api_name=False,
+    _load_sources,
+    inputs=[selected_notebook_id],
+    outputs=[sources_display],  # ← just 1 output
+    api_name=False,
     )
 
     podcast_btn.click(

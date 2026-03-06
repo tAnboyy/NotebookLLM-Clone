@@ -14,8 +14,7 @@ from huggingface_hub import InferenceClient
 
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 HF_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
-HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-
+HF_API_URL = f"https://router.huggingface.co/models/{HF_MODEL}"
 # Retrieval 
 def _get_chunks_for_notebook(notebook_id: str, limit: int = 15) -> list[str]:
     """Fetch chunks for a notebook, spread across all sources."""
@@ -62,11 +61,11 @@ Context:
 
 # HF Inference Call 
 def _call_hf(prompt: str) -> str:
-    client = InferenceClient(token=HF_TOKEN)
+    client = InferenceClient(token=HF_TOKEN, base_url="https://router.huggingface.co")
     response = client.chat_completion(
         model=HF_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=3000,  # ← increase this
+        max_tokens=3000,
     )
     return response.choices[0].message.content
 
