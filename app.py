@@ -525,15 +525,14 @@ def _generate_quiz(notebook_id, source_type, pdf_source_id, profile: gr.OAuthPro
                 q = questions[i]
                 q_label = f"**Q{i+1}. {q['question']}**"
                 if q["type"] == "multiple_choice":
-                    updates += [gr.update(visible=True), gr.update(value=q_label), gr.update(choices=q["options"], value=None, visible=True), gr.update(value="", visible=False)]
+                    updates += [gr.update(visible=True), q_label, gr.update(choices=q["options"], value=None, visible=True), gr.update(value="", visible=False)]
                 elif q["type"] == "true_false":
-                    updates += [gr.update(visible=True), gr.update(value=q_label), gr.update(choices=["True", "False"], value=None, visible=True), gr.update(value="", visible=False)]
+                    updates += [gr.update(visible=True), q_label, gr.update(choices=["True", "False"], value=None, visible=True), gr.update(value="", visible=False)]
                 else:
-                    # change this line for short_answer:
-                    updates += [gr.update(visible=True), gr.update(value=q_label), gr.update(choices=[], value=None, visible=False), gr.update(value="", visible=True)]
+                    updates += [gr.update(visible=True), q_label, gr.update(choices=[], value=None, visible=False), gr.update(value="", visible=True)]
             else:
-                updates += [gr.update(visible=False), gr.update(value=""), gr.update(choices=[], value=None, visible=False), gr.update(value="", visible=False)]
-        return "Quiz generated!", questions, *updates, gr.update(visible=True), ""
+                updates += [gr.update(visible=False), "", gr.update(choices=[], value=None, visible=False), gr.update(value="", visible=False)]
+                return "Quiz generated!", questions, *updates, gr.update(visible=True), ""
     except Exception as e:
         return f" {e}", [], *([gr.update(visible=False)] * 5 * 4), gr.update(visible=False), ""
 
