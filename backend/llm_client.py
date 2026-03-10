@@ -4,7 +4,7 @@ import os
 
 from openai import OpenAI
 
-DEFAULT_MODEL = os.getenv("LLM_MODEL", "meta-llama/Llama-3.1-8B-Instruct:groq")
+DEFAULT_MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-20b:groq")
 
 _client: OpenAI | None = None
 
